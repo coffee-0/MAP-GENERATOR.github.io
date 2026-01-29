@@ -1,0 +1,3016 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>极简地图生成器</title>
+  <!-- Tailwind CSS v3 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <!-- Three.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/controls/OrbitControls.js"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#000000',
+            secondary: '#666666',
+            accent: '#0066ff',
+            light: '#f5f5f5',
+            dark: '#333333'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .line-element {
+        @apply h-px bg-black opacity-70;
+      }
+      .corner-line {
+        @apply absolute;
+      }
+      .corner-line::before {
+        content: '';
+        @apply absolute w-8 h-px bg-black;
+      }
+      .corner-line::after {
+        content: '';
+        @apply absolute h-8 w-px bg-black;
+      }
+      .element-shadow {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
+      }
+      .grid-pattern {
+        background-image: linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+                          linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+        background-size: 20px 20px;
+      }
+    }
+  </style>
+</head>
+<body class="bg-white font-sans text-gray-900 min-h-screen overflow-x-hidden">
+  <!-- 自定义鼠标 -->
+  <div id="custom-cursor" class="fixed w-6 h-6 rounded-full border border-black pointer-events-none mix-blend-difference z-50 transform -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300"></div>
+  
+  <!-- 顶部导航 -->
+  <header class="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-40">
+    <div class="container mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-8 h-8 border border-black rounded flex items-center justify-center">
+          <i class="fa fa-map-o text-sm"></i>
+        </div>
+        <h1 class="text-lg font-light tracking-wide">MAP GENERATOR</h1>
+      </div>
+      
+      <nav class="hidden md:flex items-center space-x-8">
+        <a href="#" class="text-sm font-light hover:text-accent transition-colors">首页</a>
+        <a href="#" class="text-sm font-light hover:text-accent transition-colors">模板</a>
+        <a href="#" class="text-sm font-light hover:text-accent transition-colors">教程</a>
+        <a href="#" class="text-sm font-light hover:text-accent transition-colors">关于</a>
+      </nav>
+      
+      <div class="flex items-center space-x-4">
+        <button id="collaboration-btn" class="px-4 py-2 border border-accent text-accent text-sm hover:bg-accent hover:text-white transition-colors flex items-center space-x-2">
+          <i class="fa fa-users"></i>
+          <span>协作</span>
+        </button>
+        <button id="save-map" class="px-4 py-2 border border-black text-sm hover:bg-black hover:text-white transition-colors flex items-center space-x-2">
+          <i class="fa fa-save"></i>
+          <span>保存</span>
+        </button>
+        <button id="export-map" class="px-4 py-2 bg-black text-white text-sm hover:bg-gray-800 transition-colors flex items-center space-x-2">
+          <i class="fa fa-download"></i>
+          <span>导出</span>
+        </button>
+      </div>
+    </div>
+  </header>
+  
+  <!-- 主要内容区 -->
+  <main class="pt-24 pb-16 container mx-auto px-6">
+    <!-- 标题区域 -->
+    <section class="mb-16 relative">
+      <div class="corner-line top-0 left-0"></div>
+      <div class="corner-line top-0 right-0 rotate-90"></div>
+      <div class="corner-line bottom-0 left-0 -rotate-90"></div>
+      <div class="corner-line bottom-0 right-0 rotate-180"></div>
+      
+      <div class="max-w-3xl mx-auto text-center py-16">
+        <h1 class="text-5xl md:text-6xl font-light mb-8 tracking-tight">创建你的<br>极简世界地图</h1>
+        <div class="line-element w-24 mx-auto mb-8"></div>
+        <p class="text-lg text-gray-600 max-w-2xl mx-auto">使用简洁的线条和几何元素，设计属于你的独特地图。适用于游戏、小说、演示或个人创意项目。</p>
+      </div>
+    </section>
+    
+    <!-- 工具区域 -->
+    <section class="mb-16">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- 左侧工具栏 -->
+        <div class="lg:col-span-3 space-y-8">
+          <!-- 元素库 -->
+          <div class="bg-light p-6 border border-gray-200">
+            <h3 class="text-lg font-light mb-4 flex items-center">
+              <span class="relative z-10">元素库</span>
+              <div class="line-element flex-grow ml-4"></div>
+            </h3>
+            
+            <!-- 元素分类 -->
+            <div class="flex flex-wrap gap-2 mb-6">
+              <button class="px-3 py-1 bg-black text-white text-xs element-category active" data-category="terrain">地形</button>
+              <button class="px-3 py-1 border border-black text-xs element-category hover:bg-black hover:text-white transition-colors" data-category="building">建筑</button>
+              <button class="px-3 py-1 border border-black text-xs element-category hover:bg-black hover:text-white transition-colors" data-category="road">道路</button>
+              <button class="px-3 py-1 border border-black text-xs element-category hover:bg-black hover:text-white transition-colors" data-category="marker">标记</button>
+              <button class="px-3 py-1 border border-black text-xs element-category hover:bg-black hover:text-white transition-colors" data-category="magic">魔法</button>
+              <button class="px-3 py-1 border border-black text-xs element-category hover:bg-black hover:text-white transition-colors" data-category="xianxia">仙侠</button>
+              <button class="px-3 py-1 border border-black text-xs element-category hover:bg-black hover:text-white transition-colors" data-category="ancient">古代王朝</button>
+            </div>
+            
+            <!-- 地形元素 -->
+            <div id="terrain-elements" class="element-group space-y-3">
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="mountain" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-mountain text-xs"></i>
+                  </div>
+                  <span class="text-sm">山脉</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="river" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-water text-xs"></i>
+                  </div>
+                  <span class="text-sm">河流</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="forest" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-tree text-xs"></i>
+                  </div>
+                  <span class="text-sm">森林</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="lake" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-tint text-xs"></i>
+                  </div>
+                  <span class="text-sm">湖泊</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="desert" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-sun-o text-xs"></i>
+                  </div>
+                  <span class="text-sm">沙漠</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 建筑元素 -->
+            <div id="building-elements" class="element-group space-y-3 hidden">
+              <!-- 外国古堡元素 -->
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="medieval-castle" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-fort-awesome text-xs"></i>
+                  </div>
+                  <span class="text-sm">中世纪城堡</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="gothic-castle" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-building text-xs"></i>
+                  </div>
+                  <span class="text-sm">哥特式城堡</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="baroque-castle" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-building-o text-xs"></i>
+                  </div>
+                  <span class="text-sm">巴洛克城堡</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="renaissance-castle" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-institution text-xs"></i>
+                  </div>
+                  <span class="text-sm">文艺复兴城堡</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="castle" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-fort-awesome text-xs"></i>
+                  </div>
+                  <span class="text-sm">城堡</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="city" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-building text-xs"></i>
+                  </div>
+                  <span class="text-sm">城市</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="village" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-home text-xs"></i>
+                  </div>
+                  <span class="text-sm">村庄</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 道路元素 -->
+            <div id="road-elements" class="element-group space-y-3 hidden">
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="road-straight" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-minus text-xs"></i>
+                  </div>
+                  <span class="text-sm">直路</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="road-curve" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-long-arrow-right text-xs"></i>
+                  </div>
+                  <span class="text-sm">弯路</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="road-junction" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-crosshairs text-xs"></i>
+                  </div>
+                  <span class="text-sm">路口</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 标记元素 -->
+            <div id="marker-elements" class="element-group space-y-3 hidden">
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="marker-point" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-map-marker text-xs"></i>
+                  </div>
+                  <span class="text-sm">点标记</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="marker-text" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-font text-xs"></i>
+                  </div>
+                  <span class="text-sm">文本标记</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="marker-area" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-square-o text-xs"></i>
+                  </div>
+                  <span class="text-sm">区域标记</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 魔法元素 -->
+            <div id="magic-elements" class="element-group space-y-3 hidden">
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="magic-tower" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-bolt text-xs"></i>
+                  </div>
+                  <span class="text-sm">魔法塔</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="magic-forest" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-tree text-xs"></i>
+                  </div>
+                  <span class="text-sm">魔法森林</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="magic-circle" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-circle-o text-xs"></i>
+                  </div>
+                  <span class="text-sm">魔法阵</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 仙侠元素 -->
+            <div id="xianxia-elements" class="element-group space-y-3 hidden">
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="xianxia-mountain" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-mountain text-xs"></i>
+                  </div>
+                  <span class="text-sm">仙山</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="xianxia-school" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-university text-xs"></i>
+                  </div>
+                  <span class="text-sm">修仙门派</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="flying-sword" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-cutlery text-xs"></i>
+                  </div>
+                  <span class="text-sm">飞剑</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 古代王朝元素 -->
+            <div id="ancient-elements" class="element-group space-y-3 hidden">
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="ancient-palace" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-pagelines text-xs"></i>
+                  </div>
+                  <span class="text-sm">皇宫</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="ancient-wall" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-th text-xs"></i>
+                  </div>
+                  <span class="text-sm">城墙</span>
+                </div>
+              </div>
+              
+              <div class="element-item p-2 border border-gray-200 hover:border-black cursor-grab transition-colors" data-type="ancient-pagoda" draggable="true">
+                <div class="flex items-center">
+                  <div class="w-8 h-8 bg-light border border-gray-300 flex items-center justify-center mr-3">
+                    <i class="fa fa-building text-xs"></i>
+                  </div>
+                  <span class="text-sm">宝塔</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 地图设置 -->
+          <div class="bg-light p-6 border border-gray-200">
+            <h3 class="text-lg font-light mb-4 flex items-center">
+              <span class="relative z-10">地图设置</span>
+              <div class="line-element flex-grow ml-4"></div>
+            </h3>
+            
+            <!-- 地图大小 -->
+            <div class="mb-4">
+              <label class="text-sm block mb-2">地图大小</label>
+              <div class="flex space-x-2">
+                <input type="number" id="map-width" value="1000" min="500" max="2000" class="w-24 px-2 py-1 border border-gray-300 text-sm">
+                <span class="flex items-center text-sm">×</span>
+                <input type="number" id="map-height" value="800" min="500" max="2000" class="w-24 px-2 py-1 border border-gray-300 text-sm">
+              </div>
+            </div>
+            
+            <!-- 背景颜色 -->
+            <div class="mb-4">
+              <label class="text-sm block mb-2">背景颜色</label>
+              <div class="grid grid-cols-4 gap-2">
+                <div class="w-8 h-8 bg-white border border-gray-300 cursor-pointer hover:border-black transition-colors bg-color-option" data-color="#ffffff"></div>
+                <div class="w-8 h-8 bg-gray-50 border border-gray-300 cursor-pointer hover:border-black transition-colors bg-color-option" data-color="#f9fafb"></div>
+                <div class="w-8 h-8 bg-gray-100 border border-gray-300 cursor-pointer hover:border-black transition-colors bg-color-option" data-color="#f3f4f6"></div>
+                <div class="w-8 h-8 bg-blue-50 border border-gray-300 cursor-pointer hover:border-black transition-colors bg-color-option" data-color="#eff6ff"></div>
+              </div>
+            </div>
+            
+            <!-- 网格设置 -->
+            <div class="mb-4">
+              <label class="text-sm block mb-2">网格</label>
+              <div class="flex items-center">
+                <input type="checkbox" id="show-grid" class="mr-2">
+                <label for="show-grid" class="text-sm">显示网格</label>
+              </div>
+            </div>
+            
+            <!-- 清除地图 -->
+            <button id="clear-map" class="w-full py-2 border border-red-500 text-red-500 text-sm hover:bg-red-500 hover:text-white transition-colors">
+              清除地图
+            </button>
+          </div>
+          
+          <!-- AI辅助生成 -->
+          <div class="bg-light p-6 border border-gray-200">
+            <h3 class="text-lg font-light mb-4 flex items-center">
+              <span class="relative z-10">AI辅助</span>
+              <div class="line-element flex-grow ml-4"></div>
+            </h3>
+            
+            <!-- 文本描述输入 -->
+            <div class="mb-4">
+              <label class="text-sm block mb-2">描述你的地图</label>
+              <textarea id="map-description" rows="4" placeholder="例如：一个包含山脉、河流和城堡的奇幻世界地图..." class="w-full px-3 py-2 border border-gray-300 text-sm"></textarea>
+            </div>
+            
+            <!-- 生成按钮 -->
+            <button id="generate-map" class="w-full py-2 bg-accent text-white text-sm hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2">
+              <i class="fa fa-magic"></i>
+              <span>智能生成</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- 中间地图区域 -->
+        <div class="lg:col-span-6">
+          <!-- 地图工具栏 -->
+          <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center space-x-2">
+              <button id="zoom-out" class="w-8 h-8 border border-gray-300 flex items-center justify-center hover:border-black transition-colors">
+                <i class="fa fa-search-minus text-xs"></i>
+              </button>
+              <span id="zoom-level" class="text-sm">100%</span>
+              <button id="zoom-in" class="w-8 h-8 border border-gray-300 flex items-center justify-center hover:border-black transition-colors">
+                <i class="fa fa-search-plus text-xs"></i>
+              </button>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+              <!-- 地图类型选择 -->
+              <div class="flex space-x-2">
+                <button id="map-type-country" class="px-3 py-1 bg-black text-white text-xs hover:bg-gray-800 transition-colors">国家地图</button>
+                <button id="map-type-city" class="px-3 py-1 border border-black text-xs hover:bg-black hover:text-white transition-colors">城市地图</button>
+              </div>
+              
+              <!-- 3D视图按钮 -->
+              <button id="show-3d-view" class="px-3 py-1 border border-black text-xs hover:bg-black hover:text-white transition-colors flex items-center space-x-1">
+                <i class="fa fa-cube"></i>
+                <span>3D视图</span>
+              </button>
+              
+              <!-- 地球仪视图按钮 -->
+              <button id="show-globe-view" class="px-3 py-1 border border-black text-xs hover:bg-black hover:text-white transition-colors flex items-center space-x-1">
+                <i class="fa fa-globe"></i>
+                <span>地球仪视图</span>
+              </button>
+            </div>
+            
+            <div class="text-sm text-gray-600">
+              <span id="element-count">0</span> 个元素
+            </div>
+          </div>
+          
+          <!-- 地图容器 -->
+          <div class="relative border border-gray-200 bg-white overflow-hidden" style="height: 600px;">
+            <div id="map-container" class="absolute inset-0 transform origin-top-left transition-transform" style="transform: scale(1);">
+              <!-- 地图背景 -->
+              <div id="map-background" class="absolute inset-0 bg-white" style="width: 1000px; height: 800px;"></div>
+              
+              <!-- 网格背景 -->
+              <div id="map-grid" class="absolute inset-0 grid-pattern opacity-0 pointer-events-none"></div>
+              
+              <!-- 地图元素层 -->
+              <div id="map-elements" class="absolute inset-0"></div>
+              
+              <!-- 协作光标层 -->
+              <div id="collaboration-cursors" class="absolute inset-0 pointer-events-none"></div>
+            </div>
+          </div>
+          
+          <!-- 地图操作按钮 -->
+          <div class="flex justify-center space-x-4 mt-4">
+            <button id="generate-map-image" class="px-4 py-2 border border-black text-sm hover:bg-black hover:text-white transition-colors flex items-center space-x-2">
+              <i class="fa fa-image"></i>
+              <span>生成地图图片</span>
+            </button>
+            
+            <label for="reference-image" class="px-4 py-2 border border-black text-sm hover:bg-black hover:text-white transition-colors flex items-center space-x-2 cursor-pointer">
+              <i class="fa fa-upload"></i>
+              <span>上传参考图</span>
+              <input type="file" id="reference-image" accept="image/*" class="hidden">
+            </label>
+          </div>
+        </div>
+        
+        <!-- 右侧属性面板 -->
+        <div class="lg:col-span-3 space-y-8">
+          <!-- 属性编辑 -->
+          <div class="bg-light p-6 border border-gray-200">
+            <h3 class="text-lg font-light mb-4 flex items-center">
+              <span class="relative z-10">属性编辑</span>
+              <div class="line-element flex-grow ml-4"></div>
+            </h3>
+            
+            <div id="no-selection" class="text-center py-8 text-gray-500">
+              <i class="fa fa-hand-pointer-o text-2xl mb-2"></i>
+              <p class="text-sm">选择一个元素进行编辑</p>
+            </div>
+            
+            <div id="element-properties" class="hidden space-y-4">
+              <!-- 元素名称 -->
+              <div>
+                <label class="text-sm block mb-2">元素名称</label>
+                <input type="text" id="element-name" class="w-full px-3 py-2 border border-gray-300 text-sm">
+              </div>
+              
+              <!-- 位置 -->
+              <div>
+                <label class="text-sm block mb-2">位置</label>
+                <div class="flex space-x-2">
+                  <input type="number" id="position-x" class="w-24 px-2 py-1 border border-gray-300 text-sm">
+                  <span class="flex items-center text-sm">×</span>
+                  <input type="number" id="position-y" class="w-24 px-2 py-1 border border-gray-300 text-sm">
+                </div>
+              </div>
+              
+              <!-- 大小 -->
+              <div>
+                <label class="text-sm block mb-2">大小</label>
+                <div class="flex space-x-2">
+                  <input type="number" id="size-width" class="w-24 px-2 py-1 border border-gray-300 text-sm">
+                  <span class="flex items-center text-sm">×</span>
+                  <input type="number" id="size-height" class="w-24 px-2 py-1 border border-gray-300 text-sm">
+                </div>
+              </div>
+              
+              <!-- 旋转 -->
+              <div>
+                <label class="text-sm block mb-2">旋转</label>
+                <input type="range" id="rotation" min="0" max="360" value="0" class="w-full">
+                <div class="flex justify-between text-xs text-gray-500">
+                  <span>0°</span>
+                  <span>180°</span>
+                  <span>360°</span>
+                </div>
+              </div>
+              
+              <!-- 颜色 -->
+              <div>
+                <label class="text-sm block mb-2">颜色</label>
+                <input type="color" id="element-color" value="#000000" class="w-12 h-8 border border-gray-300">
+              </div>
+              
+              <!-- 删除按钮 -->
+              <button id="delete-element" class="w-full py-2 border border-red-500 text-red-500 text-sm hover:bg-red-500 hover:text-white transition-colors">
+                删除元素
+              </button>
+            </div>
+          </div>
+          
+          <!-- 地图样式模板 -->
+          <div class="bg-light p-6 border border-gray-200">
+            <h3 class="text-lg font-light mb-4 flex items-center">
+              <span class="relative z-10">地图样式</span>
+              <div class="line-element flex-grow ml-4"></div>
+            </h3>
+            
+            <div class="grid grid-cols-2 gap-3">
+              <button class="map-style-btn p-2 border rounded-lg hover:bg-gray-100 transition-colors" data-style="scroll">
+                <div class="w-full h-16 bg-amber-50 flex items-center justify-center">
+                  <i class="fa fa-parchment text-amber-800 text-2xl"></i>
+                </div>
+                <span class="text-xs block text-center mt-1">羊皮卷</span>
+              </button>
+              
+              <button class="map-style-btn p-2 border rounded-lg hover:bg-gray-100 transition-colors" data-style="chinese">
+                <div class="w-full h-16 bg-red-50 flex items-center justify-center">
+                  <i class="fa fa-pagoda text-red-800 text-2xl"></i>
+                </div>
+                <span class="text-xs block text-center mt-1">国风</span>
+              </button>
+              
+              <button class="map-style-btn p-2 border rounded-lg hover:bg-gray-100 transition-colors" data-style="sci-fi">
+                <div class="w-full h-16 bg-blue-900 flex items-center justify-center">
+                  <i class="fa fa-rocket text-blue-300 text-2xl"></i>
+                </div>
+                <span class="text-xs block text-center mt-1">科幻</span>
+              </button>
+              
+              <button class="map-style-btn p-2 border rounded-lg hover:bg-gray-100 transition-colors" data-style="fantasy">
+                <div class="w-full h-16 bg-purple-900 flex items-center justify-center">
+                  <i class="fa fa-dragon text-purple-300 text-2xl"></i>
+                </div>
+                <span class="text-xs block text-center mt-1">奇幻</span>
+              </button>
+            </div>
+          </div>
+          
+          <!-- 参考图预览区域 -->
+          <div id="reference-preview" class="bg-light p-6 border border-gray-200 hidden">
+            <h3 class="text-lg font-light mb-4 flex items-center">
+              <span class="relative z-10">参考图</span>
+              <div class="line-element flex-grow ml-4"></div>
+            </h3>
+            
+            <div class="relative mb-4">
+              <img id="reference-image-preview" class="w-full h-auto rounded-lg border border-gray-300">
+              <button id="remove-reference" class="absolute top-2 right-2 bg-white rounded-full w-8 h-8 flex items-center justify-center text-gray-600 hover:text-red-500">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+            
+            <button id="generate-from-reference" class="w-full py-2 border border-black text-sm hover:bg-black hover:text-white transition-colors flex items-center justify-center space-x-2">
+              <i class="fa fa-magic"></i>
+              <span>根据参考图生成地图</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  
+  <!-- 页脚 -->
+  <footer class="bg-light border-t border-gray-200 py-12">
+    <div class="container mx-auto px-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div>
+          <h3 class="text-lg font-light mb-4">极简地图生成器</h3>
+          <p class="text-sm text-gray-600">使用简洁的设计风格，创建专业的地图作品。适用于游戏、小说、演示等多种场景。</p>
+        </div>
+        
+        <div>
+          <h3 class="text-lg font-light mb-4">快速链接</h3>
+          <ul class="space-y-2 text-sm">
+            <li><a href="#" class="text-gray-600 hover:text-black transition-colors">首页</a></li>
+            <li><a href="#" class="text-gray-600 hover:text-black transition-colors">模板库</a></li>
+            <li><a href="#" class="text-gray-600 hover:text-black transition-colors">使用教程</a></li>
+            <li><a href="#" class="text-gray-600 hover:text-black transition-colors">关于我们</a></li>
+          </ul>
+        </div>
+        
+        <div>
+          <h3 class="text-lg font-light mb-4">联系我们</h3>
+          <ul class="space-y-2 text-sm">
+            <li class="flex items-center text-gray-600">
+              <i class="fa fa-envelope-o mr-2"></i>
+              <span>contact@mapgenerator.com</span>
+            </li>
+            <li class="flex items-center text-gray-600">
+              <i class="fa fa-phone mr-2"></i>
+              <span>+86 123 4567 8901</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="line-element w-full my-8"></div>
+      
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <p class="text-sm text-gray-600 mb-4 md:mb-0">© 2024 极简地图生成器. 保留所有权利.</p>
+        <div class="flex space-x-4">
+          <a href="#" class="text-gray-600 hover:text-black transition-colors">
+            <i class="fa fa-weixin"></i>
+          </a>
+          <a href="#" class="text-gray-600 hover:text-black transition-colors">
+            <i class="fa fa-weibo"></i>
+          </a>
+          <a href="#" class="text-gray-600 hover:text-black transition-colors">
+            <i class="fa fa-github"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+  
+  <!-- 通知提示 -->
+  <div id="notification" class="fixed top-24 right-6 bg-black text-white px-4 py-2 text-sm hidden opacity-0 transition-opacity duration-300"></div>
+  
+  <!-- 加载提示 -->
+  <div id="loading" class="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50 hidden">
+    <div class="text-center">
+      <div class="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p class="text-sm">正在处理...</p>
+    </div>
+  </div>
+  
+  <!-- 项目管理模态框 -->
+  <div id="project-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+      <div class="flex justify-between items-center p-6 border-b border-gray-200">
+        <h3 class="text-lg font-light">项目管理</h3>
+        <button id="close-project-modal" class="text-gray-500 hover:text-black">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-6 overflow-y-auto max-h-[70vh]">
+        <div id="projects-list" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- 项目卡片将在这里动态生成 -->
+        </div>
+        <div id="no-projects" class="text-center py-12 text-gray-500">
+          <i class="fa fa-folder-open-o text-4xl mb-4"></i>
+          <p>暂无保存的项目</p>
+          <button id="create-first-project" class="mt-4 px-4 py-2 bg-black text-white text-sm hover:bg-gray-800 transition-colors">
+            创建第一个项目
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新建项目模态框 -->
+  <div id="new-project-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg max-w-md w-full p-6">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-lg font-light">新建项目</h3>
+        <button id="close-new-project" class="text-gray-500 hover:text-black">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="text-sm block mb-2">项目名称</label>
+          <input type="text" id="project-name" placeholder="输入项目名称" class="w-full px-3 py-2 border border-gray-300 text-sm">
+        </div>
+        <div>
+          <label class="text-sm block mb-2">地图尺寸</label>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs text-gray-600">宽度</label>
+              <input type="number" id="new-map-width" value="1000" min="500" max="2000" class="w-full px-3 py-2 border border-gray-300 text-sm">
+            </div>
+            <div>
+              <label class="text-xs text-gray-600">高度</label>
+              <input type="number" id="new-map-height" value="800" min="500" max="2000" class="w-full px-3 py-2 border border-gray-300 text-sm">
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end space-x-3 pt-4">
+          <button id="cancel-new-project" class="px-4 py-2 border border-gray-300 text-sm hover:bg-gray-100 transition-colors">
+            取消
+          </button>
+          <button id="confirm-new-project" class="px-4 py-2 bg-black text-white text-sm hover:bg-gray-800 transition-colors">
+            创建
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 协作模态框 -->
+  <div id="collaboration-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+      <div class="flex justify-between items-center p-6 border-b border-gray-200">
+        <h3 class="text-lg font-light">多人协作</h3>
+        <button id="close-collaboration" class="text-gray-500 hover:text-black">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-6">
+        <div class="flex space-x-6">
+          <!-- 协作控制面板 -->
+          <div class="w-64 space-y-4">
+            <div class="bg-light p-4 border border-gray-200">
+              <h4 class="text-sm font-medium mb-3">会话信息</h4>
+              <div class="space-y-2">
+                <div>
+                  <label class="text-xs text-gray-600 block mb-1">会话名称</label>
+                  <input type="text" id="session-name" value="共创地图会话" class="w-full px-2 py-1 border border-gray-300 text-sm">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-600 block mb-1">会话ID</label>
+                  <div class="flex">
+                    <input type="text" id="session-id" value="" readonly class="flex-1 px-2 py-1 border border-gray-300 text-sm bg-gray-100">
+                    <button id="copy-session-id" class="px-2 border border-gray-300 text-xs hover:bg-gray-100">
+                      <i class="fa fa-copy"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-light p-4 border border-gray-200">
+              <h4 class="text-sm font-medium mb-3">在线用户</h4>
+              <div id="online-users" class="space-y-2 max-h-48 overflow-y-auto">
+                <!-- 在线用户列表 -->
+              </div>
+            </div>
+            
+            <div class="bg-light p-4 border border-gray-200">
+              <h4 class="text-sm font-medium mb-3">协作设置</h4>
+              <div class="space-y-2">
+                <label class="flex items-center text-sm">
+                  <input type="checkbox" id="show-cursors" checked class="mr-2">
+                  <span>显示其他用户光标</span>
+                </label>
+                <label class="flex items-center text-sm">
+                  <input type="checkbox" id="auto-sync" checked class="mr-2">
+                  <span>自动同步更改</span>
+                </label>
+                <label class="flex items-center text-sm">
+                  <input type="checkbox" id="enable-chat" checked class="mr-2">
+                  <span>启用聊天</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 聊天和协作区域 -->
+          <div class="flex-1 flex flex-col">
+            <!-- 聊天区域 -->
+            <div id="chat-container" class="flex-1 border border-gray-200 rounded-lg overflow-hidden flex flex-col">
+              <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3">
+                <!-- 聊天消息 -->
+              </div>
+              <div class="border-t border-gray-200 p-3">
+                <div class="flex space-x-2">
+                  <input type="text" id="chat-input" placeholder="输入消息..." class="flex-1 px-3 py-2 border border-gray-300 text-sm">
+                  <button id="send-message" class="px-4 py-2 bg-accent text-white text-sm hover:bg-blue-600 transition-colors">
+                    发送
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 协作操作按钮 -->
+            <div class="mt-4 flex justify-between">
+              <button id="join-session" class="px-4 py-2 border border-black text-sm hover:bg-black hover:text-white transition-colors">
+                加入现有会话
+              </button>
+              <button id="create-session" class="px-4 py-2 bg-accent text-white text-sm hover:bg-blue-600 transition-colors">
+                创建新会话
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3D视图模态框 -->
+  <div id="3d-view-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden">
+      <div class="flex justify-between items-center p-6 border-b border-gray-200">
+        <h3 class="text-lg font-light">3D视图</h3>
+        <button id="close-3d-view" class="text-gray-500 hover:text-black">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-6">
+        <div class="flex space-x-6">
+          <!-- 3D控制面板 -->
+          <div class="w-64 space-y-4">
+            <div class="bg-light p-4 border border-gray-200">
+              <h4 class="text-sm font-medium mb-3">视角控制</h4>
+              <div class="space-y-2">
+                <button id="view-top" class="w-full px-3 py-2 text-sm border border-gray-300 hover:bg-gray-100 transition-colors flex items-center justify-center space-x-2">
+                  <i class="fa fa-arrow-down"></i>
+                  <span>俯视图</span>
+                </button>
+                <button id="view-side" class="w-full px-3 py-2 text-sm border border-gray-300 hover:bg-gray-100 transition-colors flex items-center justify-center space-x-2">
+                  <i class="fa fa-arrow-right"></i>
+                  <span>侧视图</span>
+                </button>
+                <button id="view-isometric" class="w-full px-3 py-2 text-sm border border-gray-300 hover:bg-gray-100 transition-colors flex items-center justify-center space-x-2">
+                  <i class="fa fa-cube"></i>
+                  <span>等轴视图</span>
+                </button>
+              </div>
+            </div>
+            
+            <div class="bg-light p-4 border border-gray-200">
+              <h4 class="text-sm font-medium mb-3">显示设置</h4>
+              <div class="space-y-2">
+                <label class="flex items-center text-sm">
+                  <input type="checkbox" id="show-3d-buildings" checked class="mr-2">
+                  <span>显示建筑</span>
+                </label>
+                <label class="flex items-center text-sm">
+                  <input type="checkbox" id="show-3d-terrain" checked class="mr-2">
+                  <span>显示地形</span>
+                </label>
+                <label class="flex items-center text-sm">
+                  <input type="checkbox" id="show-3d-roads" checked class="mr-2">
+                  <span>显示道路</span>
+                </label>
+              </div>
+            </div>
+            
+            <div class="bg-light p-4 border border-gray-200">
+              <h4 class="text-sm font-medium mb-3">效果设置</h4>
+              <div class="space-y-3">
+                <div>
+                  <label class="text-xs text-gray-600 block mb-1">阴影效果</label>
+                  <input type="range" id="shadow-intensity" min="0" max="100" value="50" class="w-full">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-600 block mb-1">雾化效果</label>
+                  <input type="range" id="fog-intensity" min="0" max="100" value="30" class="w-full">
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 3D视图区域 -->
+          <div class="flex-1">
+            <div id="3d-canvas" class="w-full h-96 border border-gray-200 rounded-lg bg-gradient-to-b from-blue-100 to-blue-200 flex items-center justify-center">
+              <div class="text-center">
+                <i class="fa fa-cube text-4xl text-gray-400 mb-4"></i>
+                <p class="text-sm text-gray-500">3D视图加载中...</p>
+              </div>
+            </div>
+            <div class="mt-4 text-sm text-gray-600 text-center">
+              <p>提示：使用鼠标拖拽旋转视角，滚轮缩放，Shift+拖拽平移</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 地球仪视图模态框 -->
+  <div id="globe-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+      <div class="flex justify-between items-center p-6 border-b border-gray-200">
+        <h3 class="text-lg font-light">地球仪视图</h3>
+        <button id="close-globe" class="text-gray-500 hover:text-black">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-6">
+        <div class="globe-container">
+          <div id="globe-canvas" class="w-full h-96 border border-gray-200 rounded-lg bg-blue-50 flex items-center justify-center">
+            <div class="text-center">
+              <i class="fa fa-globe text-4xl text-gray-400 mb-4"></i>
+              <p class="text-sm text-gray-500">地球仪视图功能</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // 全局变量
+    let mapElements = [];
+    let selectedElement = null;
+    let currentZoom = 1;
+    let isDragging = false;
+    let dragOffset = { x: 0, y: 0 };
+    let mapContainer = null;
+    let mapBackground = null;
+    let mapGrid = null;
+    let mapElementsContainer = null;
+    let currentCategory = 'terrain';
+    
+    // 元素默认属性
+    const elementDefaults = {
+      'mountain': { width: 60, height: 60, color: '#8B4513' },
+      'river': { width: 120, height: 30, color: '#4682B4' },
+      'forest': { width: 80, height: 80, color: '#228B22' },
+      'castle': { width: 70, height: 70, color: '#696969' },
+      'city': { width: 50, height: 50, color: '#FF6347' },
+      'village': { width: 40, height: 40, color: '#DEB887' },
+      'lake': { width: 100, height: 100, color: '#1E90FF' },
+      'desert': { width: 90, height: 90, color: '#DAA520' },
+      'road-straight': { width: 150, height: 20, color: '#696969' },
+      'road-curve': { width: 100, height: 100, color: '#696969' },
+      'road-junction': { width: 80, height: 80, color: '#696969' },
+      'marker-point': { width: 30, height: 30, color: '#FF0000' },
+      'marker-text': { width: 120, height: 40, color: 'transparent' },
+      'marker-area': { width: 150, height: 150, color: 'rgba(255, 165, 0, 0.3)' },
+      'magic-tower': { width: 60, height: 80, color: '#9370DB' },
+      'magic-forest': { width: 80, height: 80, color: '#32CD32' },
+      'magic-circle': { width: 90, height: 90, color: '#8A2BE2' },
+      'xianxia-mountain': { width: 70, height: 90, color: '#708090' },
+      'xianxia-school': { width: 80, height: 80, color: '#B22222' },
+      'flying-sword': { width: 100, height: 20, color: '#C0C0C0' },
+      'ancient-palace': { width: 90, height: 90, color: '#8B0000' },
+      'ancient-wall': { width: 150, height: 30, color: '#A52A2A' },
+      'ancient-pagoda': { width: 60, height: 80, color: '#D2691E' },
+      'medieval-castle': { width: 80, height: 80, color: '#4B0082' },
+      'gothic-castle': { width: 85, height: 85, color: '#2F4F4F' },
+      'baroque-castle': { width: 90, height: 90, color: '#8B4513' },
+      'renaissance-castle': { width: 85, height: 85, color: '#6B8E23' }
+    };
+    
+    // 自定义元素
+    let customElements = [];
+    
+    // 项目管理相关
+    let currentProject = null;
+    let projects = [];
+    let autoSaveTimer = null;
+    let lastSaveTime = Date.now();
+    
+    // 3D相关
+    let scene, camera, renderer, controls;
+    let threeJsInitialized = false;
+    
+    // 协作相关
+    let collaborationManager = null;
+    let currentUser = null;
+    let currentSession = null;
+    let onlineUsers = [];
+    let broadcastChannel = null;
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      // 获取DOM元素
+      mapContainer = document.getElementById('map-container');
+      mapBackground = document.getElementById('map-background');
+      mapGrid = document.getElementById('map-grid');
+      mapElementsContainer = document.getElementById('map-elements');
+      
+      // 初始化项目管理
+      initProjectManagement();
+      
+      // 初始化事件监听
+      initEventListeners();
+      
+      // 初始化自定义鼠标
+      initCustomCursor();
+      
+      // 初始化滚动效果
+      initScrollEffects();
+      
+      // 初始化自定义元素功能
+      initCustomElements();
+      
+      // 初始化协作功能
+      initCollaboration();
+      
+      // 启动自动保存
+      startAutoSave();
+    });
+    
+    // 初始化事件监听
+    function initEventListeners() {
+      // 元素分类切换
+      document.querySelectorAll('.element-category').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const category = btn.dataset.category;
+          switchCategory(category);
+        });
+      });
+      
+      // 拖拽元素
+      document.querySelectorAll('.element-item').forEach(item => {
+        item.addEventListener('dragstart', handleDragStart);
+      });
+      
+      // 地图容器拖拽
+      mapContainer.addEventListener('mousedown', handleMapMouseDown);
+      document.addEventListener('mousemove', handleMapMouseMove);
+      document.addEventListener('mouseup', handleMapMouseUp);
+      
+      // 缩放控制
+      document.getElementById('zoom-in').addEventListener('click', () => zoomMap(0.1));
+      document.getElementById('zoom-out').addEventListener('click', () => zoomMap(-0.1));
+      
+      // 网格显示
+      document.getElementById('show-grid').addEventListener('change', toggleGrid);
+      
+      // 地图大小调整
+      document.getElementById('map-width').addEventListener('change', updateMapSize);
+      document.getElementById('map-height').addEventListener('change', updateMapSize);
+      
+      // 背景颜色选择
+      document.querySelectorAll('.bg-color-option').forEach(option => {
+        option.addEventListener('click', () => {
+          const color = option.dataset.color;
+          mapBackground.style.backgroundColor = color;
+        });
+      });
+      
+      // 清除地图
+      document.getElementById('clear-map').addEventListener('click', clearMap);
+      
+      // 删除元素
+      document.getElementById('delete-element').addEventListener('click', deleteSelectedElement);
+      
+      // 保存地图
+      document.getElementById('save-map').addEventListener('click', saveMap);
+      
+      // 导出地图
+      document.getElementById('export-map').addEventListener('click', exportMap);
+      
+      // AI生成
+      document.getElementById('generate-map').addEventListener('click', generateMapWithAI);
+      
+      // 元素属性编辑
+      document.getElementById('element-name').addEventListener('change', updateElementProperties);
+      document.getElementById('position-x').addEventListener('change', updateElementProperties);
+      document.getElementById('position-y').addEventListener('change', updateElementProperties);
+      document.getElementById('size-width').addEventListener('change', updateElementProperties);
+      document.getElementById('size-height').addEventListener('change', updateElementProperties);
+      document.getElementById('rotation').addEventListener('input', updateElementProperties);
+      document.getElementById('element-color').addEventListener('change', updateElementProperties);
+      
+      // 地图样式切换
+      document.querySelectorAll('.map-style-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const style = btn.dataset.style;
+          applyMapStyle(style);
+        });
+      });
+      
+      // 地图类型切换
+      document.getElementById('map-type-country').addEventListener('click', () => switchMapType('country'));
+      document.getElementById('map-type-city').addEventListener('click', () => switchMapType('city'));
+      
+      // 地球仪视图
+      document.getElementById('show-globe-view').addEventListener('click', showGlobeView);
+      document.getElementById('close-globe').addEventListener('click', hideGlobeView);
+      
+      // 项目管理
+      document.getElementById('new-project').addEventListener('click', showNewProjectModal);
+      document.getElementById('load-project').addEventListener('click', showProjectModal);
+      document.getElementById('close-project-modal').addEventListener('click', hideProjectModal);
+      document.getElementById('close-new-project').addEventListener('click', hideNewProjectModal);
+      document.getElementById('cancel-new-project').addEventListener('click', hideNewProjectModal);
+      document.getElementById('confirm-new-project').addEventListener('click', createNewProject);
+      document.getElementById('create-first-project').addEventListener('click', showNewProjectModal);
+      
+      // 3D视图
+      document.getElementById('show-3d-view').addEventListener('click', show3DView);
+      document.getElementById('close-3d-view').addEventListener('click', hide3DView);
+      
+      // 协作功能
+      document.getElementById('collaboration-btn').addEventListener('click', showCollaborationModal);
+      document.getElementById('close-collaboration').addEventListener('click', hideCollaborationModal);
+      document.getElementById('create-session').addEventListener('click', createCollaborationSession);
+      document.getElementById('join-session').addEventListener('click', joinCollaborationSession);
+      document.getElementById('send-message').addEventListener('click', sendChatMessage);
+      document.getElementById('chat-input').addEventListener('keypress', handleChatKeyPress);
+      document.getElementById('copy-session-id').addEventListener('click', copySessionId);
+      document.getElementById('show-cursors').addEventListener('change', updateCollaborationSettings);
+      document.getElementById('auto-sync').addEventListener('change', updateCollaborationSettings);
+      document.getElementById('enable-chat').addEventListener('change', updateCollaborationSettings);
+      
+      // 生成地图图片
+      document.getElementById('generate-map-image').addEventListener('click', generateMapImage);
+      
+      // 参考图上传
+      document.getElementById('reference-image').addEventListener('change', handleReferenceImageUpload);
+      document.getElementById('remove-reference').addEventListener('click', removeReferenceImage);
+      document.getElementById('generate-from-reference').addEventListener('click', generateMapFromReference);
+    }
+    
+    // 切换分类
+    function switchCategory(category) {
+      // 更新按钮状态
+      document.querySelectorAll('.element-category').forEach(btn => {
+        if (btn.dataset.category === category) {
+          if (category === 'custom') {
+            btn.classList.add('bg-accent', 'text-white');
+            btn.classList.remove('border', 'border-accent', 'text-accent', 'hover:bg-accent', 'hover:text-white');
+          } else {
+            btn.classList.add('bg-black', 'text-white');
+            btn.classList.remove('border', 'border-black', 'hover:bg-black', 'hover:text-white');
+          }
+        } else {
+          btn.classList.remove('bg-black', 'text-white', 'bg-accent');
+          if (btn.dataset.category === 'custom') {
+            btn.classList.add('border', 'border-accent', 'text-accent', 'hover:bg-accent', 'hover:text-white');
+          } else {
+            btn.classList.add('border', 'border-black', 'hover:bg-black', 'hover:text-white');
+          }
+        }
+      });
+      
+      // 显示对应分类的元素
+      document.querySelectorAll('.element-group').forEach(group => {
+        group.classList.add('hidden');
+      });
+      
+      // 处理自定义元素分类
+      const customSection = document.getElementById('custom-elements-section');
+      if (category === 'custom') {
+        customSection.classList.remove('hidden');
+        loadCustomElements();
+      } else {
+        customSection.classList.add('hidden');
+        const categoryElement = document.getElementById(`${category}-elements`);
+        if (categoryElement) {
+          categoryElement.classList.remove('hidden');
+        }
+      }
+      
+      currentCategory = category;
+    }
+    
+    // 处理拖拽开始
+    function handleDragStart(e) {
+      const type = e.target.dataset.type;
+      e.dataTransfer.setData('text/plain', type);
+      e.dataTransfer.effectAllowed = 'copy';
+    }
+    
+    // 处理地图鼠标按下
+    function handleMapMouseDown(e) {
+      // 如果点击的是元素，不启动地图拖拽
+      if (e.target.closest('.map-element')) {
+        return;
+      }
+      
+      isDragging = true;
+      dragOffset.x = e.clientX;
+      dragOffset.y = e.clientY;
+      mapContainer.style.cursor = 'grabbing';
+    }
+    
+    // 处理地图鼠标移动
+    function handleMapMouseMove(e) {
+      if (isDragging) {
+        const deltaX = e.clientX - dragOffset.x;
+        const deltaY = e.clientY - dragOffset.y;
+        
+        // 获取当前transform
+        const transform = mapContainer.style.transform;
+        const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+        
+        let translateX = 0;
+        let translateY = 0;
+        
+        if (match) {
+          translateX = parseFloat(match[1]);
+          translateY = parseFloat(match[2]);
+        }
+        
+        // 更新位置
+        mapContainer.style.transform = `translate(${translateX + deltaX}px, ${translateY + deltaY}px) scale(${currentZoom})`;
+        
+        dragOffset.x = e.clientX;
+        dragOffset.y = e.clientY;
+      }
+    }
+    
+    // 处理地图鼠标释放
+    function handleMapMouseUp() {
+      isDragging = false;
+      mapContainer.style.cursor = 'grab';
+    }
+    
+    // 缩放地图
+    function zoomMap(delta) {
+      const newZoom = Math.max(0.5, Math.min(2, currentZoom + delta));
+      currentZoom = newZoom;
+      
+      // 获取当前transform
+      const transform = mapContainer.style.transform;
+      const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+      
+      let translateX = 0;
+      let translateY = 0;
+      
+      if (match) {
+        translateX = parseFloat(match[1]);
+        translateY = parseFloat(match[2]);
+      }
+      
+      mapContainer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentZoom})`;
+      document.getElementById('zoom-level').textContent = `${Math.round(currentZoom * 100)}%`;
+    }
+    
+    // 切换网格显示
+    function toggleGrid() {
+      const showGrid = document.getElementById('show-grid').checked;
+      mapGrid.style.opacity = showGrid ? '1' : '0';
+    }
+    
+    // 更新地图大小
+    function updateMapSize() {
+      const width = parseInt(document.getElementById('map-width').value) || 1000;
+      const height = parseInt(document.getElementById('map-height').value) || 800;
+      
+      mapBackground.style.width = `${width}px`;
+      mapBackground.style.height = `${height}px`;
+    }
+    
+    // 清除地图
+    function clearMap() {
+      if (confirm('确定要清除所有地图元素吗？')) {
+        mapElementsContainer.innerHTML = '';
+        mapElements = [];
+        selectedElement = null;
+        hideElementProperties();
+        updateElementCount();
+        showNotification('地图已清除', 'success');
+      }
+    }
+    
+    // 删除选中元素
+    function deleteSelectedElement() {
+      if (selectedElement) {
+        const elementIndex = mapElements.findIndex(el => el.id === selectedElement.id);
+        if (elementIndex !== -1) {
+          mapElements.splice(elementIndex, 1);
+        }
+        
+        // 从DOM中移除
+        const domElement = document.querySelector(`[data-element-id="${selectedElement.id}"]`);
+        if (domElement) {
+          domElement.remove();
+        }
+        
+        selectedElement = null;
+        hideElementProperties();
+        updateElementCount();
+        showNotification('元素已删除', 'success');
+      }
+    }
+    
+    // 保存地图
+    function saveMap() {
+      if (currentProject) {
+        saveCurrentProject();
+        showNotification('地图已保存', 'success');
+      } else {
+        // 兼容旧的保存方式
+        const mapData = {
+          elements: mapElements,
+          width: parseInt(document.getElementById('map-width').value) || 1000,
+          height: parseInt(document.getElementById('map-height').value) || 800,
+          backgroundColor: mapBackground.style.backgroundColor,
+          showGrid: document.getElementById('show-grid').checked,
+          createdAt: new Date().toISOString()
+        };
+        
+        try {
+          localStorage.setItem('savedMap', JSON.stringify(mapData));
+          showNotification('地图已保存', 'success');
+        } catch (error) {
+          showNotification('保存失败', 'error');
+        }
+      }
+    }
+    
+    // 导出地图
+    function exportMap() {
+      showLoading('正在生成地图图片...');
+      
+      setTimeout(() => {
+        // 模拟生成图片
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const width = parseInt(document.getElementById('map-width').value) || 1000;
+        const height = parseInt(document.getElementById('map-height').value) || 800;
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // 绘制背景
+        ctx.fillStyle = mapBackground.style.backgroundColor || '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        
+        // 绘制网格
+        if (document.getElementById('show-grid').checked) {
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
+          ctx.lineWidth = 1;
+          
+          // 垂直线
+          for (let x = 0; x <= width; x += 20) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+          }
+          
+          // 水平线
+          for (let y = 0; y <= height; y += 20) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+          }
+        }
+        
+        // 绘制元素（简化处理）
+        ctx.fillStyle = '#000000';
+        mapElements.forEach(element => {
+          ctx.fillRect(element.x, element.y, element.width, element.height);
+        });
+        
+        // 转换为图片并下载
+        const link = document.createElement('a');
+        link.download = `map-${Date.now()}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+        
+        hideLoading();
+        showNotification('地图已导出', 'success');
+      }, 1000);
+    }
+    
+    // AI生成地图
+    function generateMapWithAI() {
+      const description = document.getElementById('map-description').value.trim();
+      
+      if (!description) {
+        showNotification('请输入地图描述', 'error');
+        return;
+      }
+      
+      showLoading('AI正在生成地图...');
+      
+      // 模拟AI生成
+      setTimeout(() => {
+        // 清除现有元素
+        mapElementsContainer.innerHTML = '';
+        mapElements = [];
+        
+        // 根据描述生成随机元素
+        const elements = [];
+        
+        if (description.includes('山脉')) {
+          elements.push('mountain');
+        }
+        if (description.includes('河流')) {
+          elements.push('river');
+        }
+        if (description.includes('森林')) {
+          elements.push('forest');
+        }
+        if (description.includes('城堡')) {
+          elements.push('castle');
+        }
+        if (description.includes('城市')) {
+          elements.push('city');
+        }
+        if (description.includes('魔法')) {
+          elements.push('magic-tower');
+        }
+        if (description.includes('仙侠')) {
+          elements.push('xianxia-mountain');
+        }
+        if (description.includes('古代')) {
+          elements.push('ancient-palace');
+        }
+        
+        // 如果没有匹配的元素，随机添加一些
+        if (elements.length === 0) {
+          elements.push('mountain', 'river', 'forest');
+        }
+        
+        // 生成元素
+        const width = parseInt(document.getElementById('map-width').value) || 1000;
+        const height = parseInt(document.getElementById('map-height').value) || 800;
+        
+        elements.forEach(type => {
+          const element = {
+            id: Date.now() + Math.random(),
+            type: type,
+            name: getElementTypeName(type),
+            x: Math.random() * (width - 100),
+            y: Math.random() * (height - 100),
+            width: 50 + Math.random() * 100,
+            height: 50 + Math.random() * 100,
+            rotation: Math.random() * 360,
+            color: '#000000'
+          };
+          
+          mapElements.push(element);
+          createElementDOM(element);
+        });
+        
+        updateElementCount();
+        hideLoading();
+        showNotification('地图生成完成', 'success');
+      }, 2000);
+    }
+    
+    // 获取元素类型名称
+    function getElementTypeName(type) {
+      const typeNames = {
+        'mountain': '山脉',
+        'river': '河流',
+        'forest': '森林',
+        'castle': '城堡',
+        'city': '城市',
+        'village': '村庄',
+        'desert': '沙漠',
+        'lake': '湖泊',
+        'tower': '塔楼',
+        'road-straight': '直路',
+        'road-curve': '弯路',
+        'road-junction': '路口',
+        'marker-point': '点标记',
+        'marker-text': '文本标记',
+        'marker-area': '区域标记',
+        'magic-tower': '魔法塔',
+        'magic-forest': '魔法森林',
+        'magic-circle': '魔法阵',
+        'xianxia-mountain': '仙山',
+        'xianxia-school': '修仙门派',
+        'flying-sword': '飞剑',
+        'ancient-palace': '皇宫',
+        'ancient-wall': '城墙',
+        'ancient-pagoda': '宝塔',
+        'medieval-castle': '中世纪城堡',
+        'gothic-castle': '哥特式城堡',
+        'baroque-castle': '巴洛克城堡',
+        'renaissance-castle': '文艺复兴城堡'
+      };
+      return typeNames[type] || type;
+    }
+    
+    // 创建元素DOM
+    function createElementDOM(element) {
+      const elementDiv = document.createElement('div');
+      elementDiv.className = 'absolute map-element element-shadow cursor-move';
+      elementDiv.dataset.elementId = element.id;
+      elementDiv.dataset.type = element.type;
+      
+      // 设置样式
+      elementDiv.style.left = `${element.x}px`;
+      elementDiv.style.top = `${element.y}px`;
+      elementDiv.style.width = `${element.width}px`;
+      elementDiv.style.height = `${element.height}px`;
+      elementDiv.style.transform = `rotate(${element.rotation}deg)`;
+      elementDiv.style.backgroundColor = element.color;
+      
+      // 添加图标
+      const icon = document.createElement('div');
+      icon.className = 'w-full h-full flex items-center justify-center';
+      
+      let iconClass = 'fa-square-o';
+      switch (element.type) {
+        case 'mountain': iconClass = 'fa-mountain'; break;
+        case 'river': iconClass = 'fa-water'; break;
+        case 'forest': iconClass = 'fa-tree'; break;
+        case 'castle': iconClass = 'fa-fort-awesome'; break;
+        case 'city': iconClass = 'fa-building'; break;
+        case 'village': iconClass = 'fa-home'; break;
+        case 'lake': iconClass = 'fa-tint'; break;
+        case 'desert': iconClass = 'fa-sun-o'; break;
+        case 'road-straight': iconClass = 'fa-minus'; break;
+        case 'road-curve': iconClass = 'fa-long-arrow-right'; break;
+        case 'road-junction': iconClass = 'fa-crosshairs'; break;
+        case 'marker-point': iconClass = 'fa-map-marker'; break;
+        case 'marker-text': iconClass = 'fa-font'; break;
+        case 'marker-area': iconClass = 'fa-square-o'; break;
+        case 'magic-tower': iconClass = 'fa-bolt'; break;
+        case 'magic-forest': iconClass = 'fa-tree'; break;
+        case 'magic-circle': iconClass = 'fa-circle-o'; break;
+        case 'xianxia-mountain': iconClass = 'fa-mountain'; break;
+        case 'xianxia-school': iconClass = 'fa-university'; break;
+        case 'flying-sword': iconClass = 'fa-cutlery'; break;
+        case 'ancient-palace': iconClass = 'fa-pagelines'; break;
+        case 'ancient-wall': iconClass = 'fa-th'; break;
+        case 'ancient-pagoda': iconClass = 'fa-building'; break;
+        case 'medieval-castle': iconClass = 'fa-fort-awesome'; break;
+        case 'gothic-castle': iconClass = 'fa-building'; break;
+        case 'baroque-castle': iconClass = 'fa-building-o'; break;
+        case 'renaissance-castle': iconClass = 'fa-institution'; break;
+      }
+      
+      icon.innerHTML = `<i class="fa ${iconClass}"></i>`;
+      elementDiv.appendChild(icon);
+      
+      // 添加点击事件
+      elementDiv.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectElement(element);
+      });
+      
+      // 添加拖拽功能
+      elementDiv.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        selectElement(element);
+      });
+      
+      mapElementsContainer.appendChild(elementDiv);
+    }
+    
+    // 选择元素
+    function selectElement(element) {
+      selectedElement = element;
+      showElementProperties();
+      
+      // 更新属性面板
+      document.getElementById('element-name').value = element.name;
+      document.getElementById('position-x').value = Math.round(element.x);
+      document.getElementById('position-y').value = Math.round(element.y);
+      document.getElementById('size-width').value = Math.round(element.width);
+      document.getElementById('size-height').value = Math.round(element.height);
+      document.getElementById('rotation').value = Math.round(element.rotation);
+      document.getElementById('element-color').value = element.color;
+      
+      // 高亮显示
+      document.querySelectorAll('.map-element').forEach(el => {
+        el.style.outline = 'none';
+      });
+      
+      const domElement = document.querySelector(`[data-element-id="${element.id}"]`);
+      if (domElement) {
+        domElement.style.outline = '2px solid #0066ff';
+      }
+    }
+    
+    // 显示元素属性
+    function showElementProperties() {
+      document.getElementById('no-selection').classList.add('hidden');
+      document.getElementById('element-properties').classList.remove('hidden');
+    }
+    
+    // 隐藏元素属性
+    function hideElementProperties() {
+      document.getElementById('no-selection').classList.remove('hidden');
+      document.getElementById('element-properties').classList.add('hidden');
+      
+      // 移除所有高亮
+      document.querySelectorAll('.map-element').forEach(el => {
+        el.style.outline = 'none';
+      });
+    }
+    
+    // 更新元素属性
+    function updateElementProperties() {
+      if (!selectedElement) return;
+      
+      selectedElement.name = document.getElementById('element-name').value;
+      selectedElement.x = parseInt(document.getElementById('position-x').value) || 0;
+      selectedElement.y = parseInt(document.getElementById('position-y').value) || 0;
+      selectedElement.width = parseInt(document.getElementById('size-width').value) || 50;
+      selectedElement.height = parseInt(document.getElementById('size-height').value) || 50;
+      selectedElement.rotation = parseInt(document.getElementById('rotation').value) || 0;
+      selectedElement.color = document.getElementById('element-color').value;
+      
+      // 更新DOM
+      const domElement = document.querySelector(`[data-element-id="${selectedElement.id}"]`);
+      if (domElement) {
+        domElement.style.left = `${selectedElement.x}px`;
+        domElement.style.top = `${selectedElement.y}px`;
+        domElement.style.width = `${selectedElement.width}px`;
+        domElement.style.height = `${selectedElement.height}px`;
+        domElement.style.transform = `rotate(${selectedElement.rotation}deg)`;
+        domElement.style.backgroundColor = selectedElement.color;
+      }
+    }
+    
+    // 更新元素计数
+    function updateElementCount() {
+      document.getElementById('element-count').textContent = mapElements.length;
+    }
+    
+    // 应用地图样式
+    function applyMapStyle(style) {
+      // 移除所有样式类
+      mapBackground.classList.remove('map-style-scroll', 'map-style-chinese', 'map-style-sci-fi', 'map-style-fantasy');
+      
+      // 添加选中的样式
+      mapBackground.classList.add(`map-style-${style}`);
+      
+      showNotification(`已应用${getStyleName(style)}风格`, 'success');
+    }
+    
+    // 获取样式名称
+    function getStyleName(style) {
+      const styleNames = {
+        'scroll': '羊皮卷',
+        'chinese': '国风',
+        'sci-fi': '科幻',
+        'fantasy': '奇幻'
+      };
+      return styleNames[style] || style;
+    }
+    
+    // 切换地图类型
+    function switchMapType(type) {
+      const countryBtn = document.getElementById('map-type-country');
+      const cityBtn = document.getElementById('map-type-city');
+      
+      if (type === 'country') {
+        countryBtn.classList.add('bg-black', 'text-white');
+        countryBtn.classList.remove('border', 'border-black', 'hover:bg-black', 'hover:text-white');
+        cityBtn.classList.remove('bg-black', 'text-white');
+        cityBtn.classList.add('border', 'border-black', 'hover:bg-black', 'hover:text-white');
+      } else {
+        cityBtn.classList.add('bg-black', 'text-white');
+        cityBtn.classList.remove('border', 'border-black', 'hover:bg-black', 'hover:text-white');
+        countryBtn.classList.remove('bg-black', 'text-white');
+        countryBtn.classList.add('border', 'border-black', 'hover:bg-black', 'hover:text-white');
+      }
+      
+      showNotification(`已切换到${type === 'country' ? '国家地图' : '城市地图'}模式`, 'success');
+    }
+    
+    // 显示地球仪视图
+    function showGlobeView() {
+      document.getElementById('globe-modal').classList.remove('hidden');
+    }
+    
+    // 隐藏地球仪视图
+    function hideGlobeView() {
+      document.getElementById('globe-modal').classList.add('hidden');
+    }
+    
+    // 项目管理功能
+    function initProjectManagement() {
+      loadProjects();
+      createDefaultProject();
+    }
+    
+    function loadProjects() {
+      try {
+        const saved = localStorage.getItem('mapProjects');
+        if (saved) {
+          projects = JSON.parse(saved);
+        }
+      } catch (error) {
+        console.error('加载项目失败:', error);
+        projects = [];
+      }
+    }
+    
+    function saveProjects() {
+      try {
+        localStorage.setItem('mapProjects', JSON.stringify(projects));
+      } catch (error) {
+        console.error('保存项目失败:', error);
+      }
+    }
+    
+    function createDefaultProject() {
+      if (projects.length === 0) {
+        const defaultProject = {
+          id: Date.now().toString(),
+          name: '我的第一个地图',
+          thumbnail: '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          data: {
+            elements: [],
+            width: 1000,
+            height: 800,
+            backgroundColor: '#ffffff',
+            showGrid: false
+          },
+          versions: []
+        };
+        projects.push(defaultProject);
+        currentProject = defaultProject;
+        saveProjects();
+      } else {
+        currentProject = projects[0];
+        loadProject(currentProject);
+      }
+    }
+    
+    function showProjectModal() {
+      updateProjectsList();
+      document.getElementById('project-modal').classList.remove('hidden');
+    }
+    
+    function hideProjectModal() {
+      document.getElementById('project-modal').classList.add('hidden');
+    }
+    
+    function showNewProjectModal() {
+      document.getElementById('new-project-modal').classList.remove('hidden');
+      document.getElementById('project-modal').classList.add('hidden');
+    }
+    
+    function hideNewProjectModal() {
+      document.getElementById('new-project-modal').classList.add('hidden');
+    }
+    
+    function createNewProject() {
+      const name = document.getElementById('project-name').value.trim();
+      const width = parseInt(document.getElementById('new-map-width').value) || 1000;
+      const height = parseInt(document.getElementById('new-map-height').value) || 800;
+      
+      if (!name) {
+        showNotification('请输入项目名称', 'error');
+        return;
+      }
+      
+      const newProject = {
+        id: Date.now().toString(),
+        name: name,
+        thumbnail: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        data: {
+          elements: [],
+          width: width,
+          height: height,
+          backgroundColor: '#ffffff',
+          showGrid: false
+        },
+        versions: []
+      };
+      
+      projects.push(newProject);
+      currentProject = newProject;
+      saveProjects();
+      
+      // 更新地图设置
+      document.getElementById('map-width').value = width;
+      document.getElementById('map-height').value = height;
+      updateMapSize();
+      
+      // 清空当前地图
+      clearMap();
+      
+      hideNewProjectModal();
+      showNotification(`项目 "${name}" 创建成功`, 'success');
+    }
+    
+    function updateProjectsList() {
+      const list = document.getElementById('projects-list');
+      const noProjects = document.getElementById('no-projects');
+      
+      if (projects.length === 0) {
+        list.classList.add('hidden');
+        noProjects.classList.remove('hidden');
+        return;
+      }
+      
+      list.classList.remove('hidden');
+      noProjects.classList.add('hidden');
+      
+      list.innerHTML = '';
+      projects.forEach(project => {
+        const card = document.createElement('div');
+        card.className = 'border border-gray-200 rounded-lg overflow-hidden hover:border-black transition-colors';
+        card.innerHTML = `
+          <div class="h-32 bg-gray-100 flex items-center justify-center">
+            <i class="fa fa-map-o text-3xl text-gray-400"></i>
+          </div>
+          <div class="p-4">
+            <h4 class="text-sm font-medium mb-1">${project.name}</h4>
+            <p class="text-xs text-gray-500 mb-3">${new Date(project.updatedAt).toLocaleDateString()}</p>
+            <div class="flex space-x-2">
+              <button onclick="loadProjectById('${project.id}')" class="px-2 py-1 bg-black text-white text-xs hover:bg-gray-800 transition-colors">
+                加载
+              </button>
+              <button onclick="deleteProjectById('${project.id}')" class="px-2 py-1 border border-red-500 text-red-500 text-xs hover:bg-red-500 hover:text-white transition-colors">
+                删除
+              </button>
+            </div>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+    
+    function loadProjectById(projectId) {
+      const project = projects.find(p => p.id === projectId);
+      if (project) {
+        loadProject(project);
+        hideProjectModal();
+        showNotification(`项目 "${project.name}" 加载成功`, 'success');
+      }
+    }
+    
+    function deleteProjectById(projectId) {
+      if (confirm('确定要删除这个项目吗？')) {
+        const index = projects.findIndex(p => p.id === projectId);
+        if (index !== -1) {
+          const project = projects[index];
+          projects.splice(index, 1);
+          saveProjects();
+          
+          if (currentProject && currentProject.id === projectId) {
+            if (projects.length > 0) {
+              currentProject = projects[0];
+              loadProject(currentProject);
+            } else {
+              createDefaultProject();
+            }
+          }
+          
+          updateProjectsList();
+          showNotification(`项目 "${project.name}" 已删除`, 'success');
+        }
+      }
+    }
+    
+    function loadProject(project) {
+      currentProject = project;
+      
+      // 更新地图设置
+      document.getElementById('map-width').value = project.data.width;
+      document.getElementById('map-height').value = project.data.height;
+      document.getElementById('show-grid').checked = project.data.showGrid;
+      mapBackground.style.backgroundColor = project.data.backgroundColor;
+      
+      updateMapSize();
+      toggleGrid();
+      
+      // 加载元素
+      mapElementsContainer.innerHTML = '';
+      mapElements = [];
+      
+      project.data.elements.forEach(element => {
+        mapElements.push(element);
+        createElementDOM(element);
+      });
+      
+      updateElementCount();
+      hideElementProperties();
+    }
+    
+    function startAutoSave() {
+      setInterval(() => {
+        if (currentProject && Date.now() - lastSaveTime > 30000) { // 30秒自动保存
+          saveCurrentProject();
+          lastSaveTime = Date.now();
+        }
+      }, 5000); // 每5秒检查一次
+    }
+    
+    function saveCurrentProject() {
+      if (currentProject) {
+        currentProject.data.elements = mapElements;
+        currentProject.data.width = parseInt(document.getElementById('map-width').value) || 1000;
+        currentProject.data.height = parseInt(document.getElementById('map-height').value) || 800;
+        currentProject.data.backgroundColor = mapBackground.style.backgroundColor;
+        currentProject.data.showGrid = document.getElementById('show-grid').checked;
+        currentProject.updatedAt = new Date().toISOString();
+        
+        // 添加版本历史
+        if (mapElements.length > 0) {
+          const version = {
+            id: Date.now().toString(),
+            timestamp: new Date().toISOString(),
+            data: JSON.parse(JSON.stringify(currentProject.data))
+          };
+          
+          currentProject.versions.push(version);
+          // 只保留最近10个版本
+          if (currentProject.versions.length > 10) {
+            currentProject.versions.shift();
+          }
+        }
+        
+        saveProjects();
+      }
+    }
+    
+    // 生成地图图片
+    function generateMapImage() {
+      const mapElements = mapContainer.querySelectorAll('.map-element');
+      
+      if (mapElements.length === 0) {
+        showNotification('请先生成或添加地图元素！', 'error');
+        return;
+      }
+      
+      showLoading('正在生成地图图片...');
+      
+      // 获取地图描述
+      let mapDescription = '';
+      mapElements.forEach(element => {
+        const type = element.dataset.type;
+        const elementName = getElementTypeName(type);
+        if (mapDescription) mapDescription += '、';
+        mapDescription += elementName;
+      });
+      
+      // 构建完整的提示词
+      const worldType = detectWorldType();
+      const prompt = `一张精美的${worldType}地图，包含${mapDescription}等元素。地图风格清晰、色彩鲜明，适合用于奇幻小说或游戏场景。`;
+      
+      // 模拟调用豆包图片生成API
+      setTimeout(() => {
+        // 这里是模拟的图片URL，实际应用中应该替换为真实的API返回结果
+        const generatedImageUrl = `https://p3-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/rc/pc/super_tool/3f1aa3e8c7a74fae87a0df3a758ff0ca~tplv-a9rns2rl98-image.image?lk3s=8e244e95&rcl=20260128180214CF787B9C303848216AC4&rrcfp=f06b921b&x-expires=1772186549&x-signature=wi0dezo6qhXZ3P9TojNb9N8zcFU%3D`;
+        
+        // 显示生成的图片
+        const imagePreviewModal = document.createElement('div');
+        imagePreviewModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        imagePreviewModal.innerHTML = `
+          <div class="bg-white p-6 rounded-lg max-w-2xl w-full">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-lg font-light">生成的地图图片</h3>
+              <button id="close-preview" class="text-gray-500 hover:text-black">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+            <div class="mb-4">
+              <img src="${generatedImageUrl}" alt="生成的地图" class="w-full h-auto rounded">
+            </div>
+            <div class="flex justify-end">
+              <a href="${generatedImageUrl}" download="map.png" class="px-4 py-2 bg-black text-white text-sm hover:bg-gray-800 transition-colors flex items-center space-x-2">
+                <i class="fa fa-download"></i>
+                <span>下载图片</span>
+              </a>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(imagePreviewModal);
+        
+        // 关闭预览
+        document.getElementById('close-preview').addEventListener('click', () => {
+          document.body.removeChild(imagePreviewModal);
+        });
+        
+        hideLoading();
+        showNotification('地图图片生成成功！', 'success');
+      }, 3000);
+    }
+    
+    // 检测地图的世界类型
+    function detectWorldType() {
+      const mapElements = mapContainer.querySelectorAll('.map-element');
+      
+      let worldType = '奇幻';
+      let magicCount = 0;
+      let xianxiaCount = 0;
+      let ancientCount = 0;
+      
+      mapElements.forEach(element => {
+        const type = element.dataset.type;
+        if (type.startsWith('magic-')) magicCount++;
+        if (type.startsWith('xianxia-') || type === 'flying-sword') xianxiaCount++;
+        if (type.startsWith('ancient-')) ancientCount++;
+      });
+      
+      if (magicCount > 0 && magicCount >= xianxiaCount && magicCount >= ancientCount) {
+        worldType = '魔法';
+      } else if (xianxiaCount > 0 && xianxiaCount >= magicCount && xianxiaCount >= ancientCount) {
+        worldType = '仙侠';
+      } else if (ancientCount > 0 && ancientCount >= magicCount && ancientCount >= xianxiaCount) {
+        worldType = '古代王朝';
+      }
+      
+      return worldType;
+    }
+    
+    // 处理参考图上传
+    function handleReferenceImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const preview = document.getElementById('reference-image-preview');
+        preview.src = e.target.result;
+        
+        // 显示预览区域
+        document.getElementById('reference-preview').classList.remove('hidden');
+        
+        showNotification('参考图上传成功！', 'success');
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    // 移除参考图
+    function removeReferenceImage() {
+      document.getElementById('reference-image').value = '';
+      document.getElementById('reference-preview').classList.add('hidden');
+      showNotification('参考图已移除', 'info');
+    }
+    
+    // 3D视图功能
+    function show3DView() {
+      document.getElementById('3d-view-modal').classList.remove('hidden');
+      if (!threeJsInitialized) {
+        initThreeJS();
+      } else {
+        update3DScene();
+      }
+    }
+    
+    function hide3DView() {
+      document.getElementById('3d-view-modal').classList.add('hidden');
+    }
+    
+    function initThreeJS() {
+      const container = document.getElementById('3d-canvas');
+      
+      // 创建场景
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xf0f8ff);
+      
+      // 创建相机
+      camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+      camera.position.set(0, 500, 500);
+      
+      // 创建渲染器
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.shadowMap.enabled = true;
+      container.innerHTML = '';
+      container.appendChild(renderer.domElement);
+      
+      // 添加轨道控制器
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      
+      // 添加光源
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+      
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(500, 800, 300);
+      directionalLight.castShadow = true;
+      scene.add(directionalLight);
+      
+      // 创建地面
+      const groundGeometry = new THREE.PlaneGeometry(1000, 800);
+      const groundMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0xecf0f1,
+        roughness: 0.8,
+        metalness: 0.2
+      });
+      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -0.1;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      
+      // 添加网格
+      const gridHelper = new THREE.GridHelper(1000, 50, 0x888888, 0xcccccc);
+      scene.add(gridHelper);
+      
+      // 渲染循环
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      
+      animate();
+      threeJsInitialized = true;
+      
+      // 添加事件监听
+      document.getElementById('view-top').addEventListener('click', setTopView);
+      document.getElementById('view-side').addEventListener('click', setSideView);
+      document.getElementById('view-isometric').addEventListener('click', setIsometricView);
+      
+      // 更新3D场景
+      update3DScene();
+    }
+    
+    function update3DScene() {
+      if (!scene) return;
+      
+      // 清除现有元素
+      scene.children.forEach(child => {
+        if (child.isCustomElement) {
+          scene.remove(child);
+        }
+      });
+      
+      // 添加地图元素
+      mapElements.forEach(element => {
+        const mesh = create3DElement(element);
+        if (mesh) {
+          mesh.isCustomElement = true;
+          scene.add(mesh);
+        }
+      });
+    }
+    
+    function create3DElement(element) {
+      let geometry, material, mesh;
+      const scale = 0.5;
+      
+      switch (element.type) {
+        case 'mountain':
+          // 创建山脉（锥体）
+          geometry = new THREE.ConeGeometry(element.width * scale, element.height * scale, 8);
+          material = new THREE.MeshStandardMaterial({ color: 0x95a5a6 });
+          mesh = new THREE.Mesh(geometry, material);
+          mesh.position.set(element.x - 500, (element.height * scale) / 2, element.y - 400);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          break;
+          
+        case 'castle':
+        case 'medieval-castle':
+        case 'gothic-castle':
+          // 创建城堡（立方体+锥体）
+          geometry = new THREE.BoxGeometry(element.width * scale, element.height * scale, element.width * scale);
+          material = new THREE.MeshStandardMaterial({ color: 0x7f8c8d });
+          mesh = new THREE.Mesh(geometry, material);
+          mesh.position.set(element.x - 500, (element.height * scale) / 2, element.y - 400);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          
+          // 添加塔楼
+          const towerGeometry = new THREE.ConeGeometry(element.width * scale * 0.3, element.height * scale * 0.5, 8);
+          const towerMaterial = new THREE.MeshStandardMaterial({ color: 0x34495e });
+          const tower = new THREE.Mesh(towerGeometry, towerMaterial);
+          tower.position.set(0, element.height * scale, 0);
+          mesh.add(tower);
+          break;
+          
+        case 'city':
+          // 创建城市（多个立方体）
+          const cityGroup = new THREE.Group();
+          const buildingCount = Math.floor(element.width * element.height / 5000);
+          
+          for (let i = 0; i < buildingCount; i++) {
+            const buildingWidth = Math.random() * 20 + 10;
+            const buildingHeight = Math.random() * 40 + 20;
+            const buildingDepth = Math.random() * 20 + 10;
+            
+            geometry = new THREE.BoxGeometry(buildingWidth, buildingHeight, buildingDepth);
+            material = new THREE.MeshStandardMaterial({ color: 0x3498db });
+            const building = new THREE.Mesh(geometry, material);
+            
+            building.position.set(
+              Math.random() * element.width - element.width / 2,
+              buildingHeight / 2,
+              Math.random() * element.height - element.height / 2
+            );
+            
+            building.castShadow = true;
+            building.receiveShadow = true;
+            cityGroup.add(building);
+          }
+          
+          cityGroup.position.set(element.x - 500, 0, element.y - 400);
+          return cityGroup;
+          
+        case 'forest':
+          // 创建森林（多个锥体）
+          const forestGroup = new THREE.Group();
+          const treeCount = Math.floor(element.width * element.height / 1000);
+          
+          for (let i = 0; i < treeCount; i++) {
+            geometry = new THREE.ConeGeometry(5, 15, 6);
+            material = new THREE.MeshStandardMaterial({ color: 0x27ae60 });
+            const tree = new THREE.Mesh(geometry, material);
+            
+            tree.position.set(
+              Math.random() * element.width - element.width / 2,
+              7.5,
+              Math.random() * element.height - element.height / 2
+            );
+            
+            tree.castShadow = true;
+            tree.receiveShadow = true;
+            forestGroup.add(tree);
+          }
+          
+          forestGroup.position.set(element.x - 500, 0, element.y - 400);
+          return forestGroup;
+          
+        case 'river':
+          // 创建河流（弯曲的平面）
+          geometry = new THREE.PlaneGeometry(element.width * scale, element.height * scale);
+          material = new THREE.MeshStandardMaterial({ 
+            color: 0x3498db,
+            roughness: 0.2,
+            metalness: 0.8,
+            transparent: true,
+            opacity: 0.7
+          });
+          mesh = new THREE.Mesh(geometry, material);
+          mesh.rotation.x = -Math.PI / 2;
+          mesh.position.set(element.x - 500, 0.1, element.y - 400);
+          break;
+          
+        case 'road-straight':
+        case 'road-curve':
+          // 创建道路
+          geometry = new THREE.PlaneGeometry(element.width * scale, element.height * scale);
+          material = new THREE.MeshStandardMaterial({ color: 0x7f8c8d });
+          mesh = new THREE.Mesh(geometry, material);
+          mesh.rotation.x = -Math.PI / 2;
+          mesh.position.set(element.x - 500, 0.2, element.y - 400);
+          break;
+          
+        default:
+          // 创建通用元素
+          geometry = new THREE.BoxGeometry(element.width * scale, 10, element.height * scale);
+          material = new THREE.MeshStandardMaterial({ color: 0x95a5a6 });
+          mesh = new THREE.Mesh(geometry, material);
+          mesh.position.set(element.x - 500, 5, element.y - 400);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+      }
+      
+      return mesh;
+    }
+    
+    function setTopView() {
+      camera.position.set(0, 800, 10);
+      camera.lookAt(0, 0, 0);
+      controls.update();
+    }
+    
+    function setSideView() {
+      camera.position.set(800, 200, 0);
+      camera.lookAt(0, 0, 0);
+      controls.update();
+    }
+    
+    function setIsometricView() {
+      camera.position.set(500, 300, 500);
+      camera.lookAt(0, 0, 0);
+      controls.update();
+    }
+    
+    // 协作功能
+    function initCollaboration() {
+      // 创建当前用户
+      createCurrentUser();
+      
+      // 初始化BroadcastChannel
+      initBroadcastChannel();
+      
+      // 初始化协作管理器
+      collaborationManager = new CollaborationManager();
+      
+      // 添加地图操作监听
+      addCollaborationEventListeners();
+    }
+    
+    function createCurrentUser() {
+      const storedUser = localStorage.getItem('collaborationUser');
+      if (storedUser) {
+        currentUser = JSON.parse(storedUser);
+      } else {
+        currentUser = {
+          id: 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+          name: '用户' + Math.floor(Math.random() * 1000),
+          avatar: Math.floor(Math.random() * 8) + 1,
+          color: getRandomColor(),
+          role: 'editor',
+          online: true,
+          lastActive: Date.now()
+        };
+        localStorage.setItem('collaborationUser', JSON.stringify(currentUser));
+      }
+    }
+    
+    function initBroadcastChannel() {
+      try {
+        broadcastChannel = new BroadcastChannel('map-collaboration');
+        broadcastChannel.onmessage = handleBroadcastMessage;
+      } catch (error) {
+        console.warn('BroadcastChannel不支持，使用localStorage模拟');
+        initLocalStorageSync();
+      }
+    }
+    
+    function initLocalStorageSync() {
+      window.addEventListener('storage', handleStorageEvent);
+    }
+    
+    function handleBroadcastMessage(event) {
+      const message = event.data;
+      processCollaborationMessage(message);
+    }
+    
+    function handleStorageEvent(event) {
+      if (event.key === 'collaboration-message') {
+        try {
+          const message = JSON.parse(event.newValue);
+          if (message && message.senderId !== currentUser.id) {
+            processCollaborationMessage(message);
+          }
+        } catch (error) {
+          console.error('处理协作消息失败:', error);
+        }
+      }
+    }
+    
+    function sendCollaborationMessage(message) {
+      message.senderId = currentUser.id;
+      message.timestamp = Date.now();
+      
+      if (broadcastChannel) {
+        broadcastChannel.postMessage(message);
+      } else {
+        // 使用localStorage模拟
+        localStorage.setItem('collaboration-message', JSON.stringify(message));
+        setTimeout(() => {
+          localStorage.removeItem('collaboration-message');
+        }, 100);
+      }
+    }
+    
+    function processCollaborationMessage(message) {
+      switch (message.type) {
+        case 'user-online':
+          handleUserOnline(message);
+          break;
+        case 'user-offline':
+          handleUserOffline(message);
+          break;
+        case 'cursor-move':
+          handleCursorMove(message);
+          break;
+        case 'element-update':
+          handleElementUpdate(message);
+          break;
+        case 'element-create':
+          handleElementCreate(message);
+          break;
+        case 'element-delete':
+          handleElementDelete(message);
+          break;
+        case 'chat-message':
+          handleChatMessage(message);
+          break;
+        case 'session-create':
+          handleSessionCreate(message);
+          break;
+        case 'session-join':
+          handleSessionJoin(message);
+          break;
+      }
+    }
+    
+    class CollaborationManager {
+      constructor() {
+        this.cursors = new Map();
+        this.isConnected = false;
+        this.settings = {
+          showCursors: true,
+          autoSync: true,
+          enableChat: true
+        };
+      }
+      
+      connect(sessionId = null) {
+        if (sessionId) {
+          this.joinSession(sessionId);
+        } else {
+          this.createSession();
+        }
+      }
+      
+      disconnect() {
+        if (currentSession) {
+          sendCollaborationMessage({
+            type: 'user-offline',
+            sessionId: currentSession.id,
+            userId: currentUser.id
+          });
+        }
+        currentSession = null;
+        onlineUsers = [];
+        this.clearCursors();
+        this.updateUI();
+      }
+      
+      createSession() {
+        const sessionName = document.getElementById('session-name').value || '共创地图会话';
+        currentSession = {
+          id: 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+          name: sessionName,
+          createdBy: currentUser.id,
+          createdAt: Date.now(),
+          participants: [currentUser.id],
+          lastUpdated: Date.now()
+        };
+        
+        document.getElementById('session-id').value = currentSession.id;
+        
+        sendCollaborationMessage({
+          type: 'session-create',
+          session: currentSession,
+          user: currentUser
+        });
+        
+        onlineUsers = [currentUser];
+        this.isConnected = true;
+        this.updateUI();
+        
+        showNotification(`协作会话 "${sessionName}" 创建成功`, 'success');
+      }
+      
+      joinSession(sessionId) {
+        sendCollaborationMessage({
+          type: 'session-join',
+          sessionId: sessionId,
+          user: currentUser
+        });
+      }
+      
+      updateCursor(userId, x, y) {
+        if (!this.settings.showCursors) return;
+        
+        let cursor = this.cursors.get(userId);
+        if (!cursor) {
+          const user = onlineUsers.find(u => u.id === userId);
+          if (!user) return;
+          
+          cursor = this.createCursorElement(user);
+          this.cursors.set(userId, cursor);
+        }
+        
+        cursor.style.left = x + 'px';
+        cursor.style.top = y + 'px';
+      }
+      
+      createCursorElement(user) {
+        const cursor = document.createElement('div');
+        cursor.className = 'absolute flex items-center space-x-2 transition-transform duration-100';
+        cursor.innerHTML = `
+          <div class="w-4 h-4 rounded-full" style="background-color: ${user.color}"></div>
+          <div class="px-2 py-1 text-xs rounded" style="background-color: ${user.color}; color: white;">
+            ${user.name}
+          </div>
+        `;
+        
+        const cursorsContainer = document.getElementById('collaboration-cursors');
+        cursorsContainer.appendChild(cursor);
+        
+        return cursor;
+      }
+      
+      clearCursors() {
+        this.cursors.forEach(cursor => {
+          if (cursor.parentNode) {
+            cursor.parentNode.removeChild(cursor);
+          }
+        });
+        this.cursors.clear();
+      }
+      
+      updateSettings(settings) {
+        this.settings = { ...this.settings, ...settings };
+        if (!this.settings.showCursors) {
+          this.clearCursors();
+        }
+      }
+      
+      updateUI() {
+        this.updateOnlineUsersList();
+        this.updateChatUI();
+      }
+      
+      updateOnlineUsersList() {
+        const usersList = document.getElementById('online-users');
+        usersList.innerHTML = '';
+        
+        onlineUsers.forEach(user => {
+          const userElement = document.createElement('div');
+          userElement.className = 'flex items-center justify-between';
+          userElement.innerHTML = `
+            <div class="flex items-center space-x-2">
+              <div class="w-6 h-6 rounded-full flex items-center justify-center text-white" style="background-color: ${user.color}">
+                ${user.name.charAt(0)}
+              </div>
+              <span class="text-xs">${user.name}</span>
+            </div>
+            <div class="w-2 h-2 rounded-full bg-green-500"></div>
+          `;
+          usersList.appendChild(userElement);
+        });
+      }
+      
+      updateChatUI() {
+        const chatContainer = document.getElementById('chat-container');
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-message');
+        
+        if (this.settings.enableChat) {
+          chatContainer.classList.remove('opacity-50', 'pointer-events-none');
+          chatInput.disabled = false;
+          sendButton.disabled = false;
+        } else {
+          chatContainer.classList.add('opacity-50', 'pointer-events-none');
+          chatInput.disabled = true;
+          sendButton.disabled = true;
+        }
+      }
+    }
+    
+    function handleUserOnline(message) {
+      const existingUser = onlineUsers.find(u => u.id === message.user.id);
+      if (!existingUser) {
+        onlineUsers.push(message.user);
+        if (collaborationManager) {
+          collaborationManager.updateUI();
+        }
+      }
+    }
+    
+    function handleUserOffline(message) {
+      onlineUsers = onlineUsers.filter(u => u.id !== message.userId);
+      if (collaborationManager) {
+        collaborationManager.updateUI();
+      }
+    }
+    
+    function handleCursorMove(message) {
+      if (message.userId !== currentUser.id && collaborationManager) {
+        collaborationManager.updateCursor(message.userId, message.x, message.y);
+      }
+    }
+    
+    function handleElementUpdate(message) {
+      if (message.userId !== currentUser.id && collaborationManager && collaborationManager.settings.autoSync) {
+        const element = mapElements.find(el => el.id === message.elementId);
+        if (element) {
+          Object.assign(element, message.data);
+          updateElementDOM(element);
+        }
+      }
+    }
+    
+    function handleElementCreate(message) {
+      if (message.userId !== currentUser.id && collaborationManager && collaborationManager.settings.autoSync) {
+        const existingElement = mapElements.find(el => el.id === message.element.id);
+        if (!existingElement) {
+          mapElements.push(message.element);
+          createElementDOM(message.element);
+          updateElementCount();
+        }
+      }
+    }
+    
+    function handleElementDelete(message) {
+      if (message.userId !== currentUser.id && collaborationManager && collaborationManager.settings.autoSync) {
+        const elementIndex = mapElements.findIndex(el => el.id === message.elementId);
+        if (elementIndex !== -1) {
+          mapElements.splice(elementIndex, 1);
+          const domElement = document.querySelector(`[data-element-id="${message.elementId}"]`);
+          if (domElement) {
+            domElement.remove();
+          }
+          updateElementCount();
+        }
+      }
+    }
+    
+    function handleChatMessage(message) {
+      if (collaborationManager && collaborationManager.settings.enableChat) {
+        addChatMessage(message.user, message.content, message.timestamp);
+      }
+    }
+    
+    function handleSessionCreate(message) {
+      if (message.session.id !== currentSession?.id) {
+        // 可以选择加入这个会话
+        console.log('检测到新的协作会话:', message.session);
+      }
+    }
+    
+    function handleSessionJoin(message) {
+      if (message.sessionId === currentSession?.id) {
+        // 有人加入了当前会话
+        handleUserOnline({ user: message.user });
+      }
+    }
+    
+    function addCollaborationEventListeners() {
+      // 监听鼠标移动以发送光标位置
+      mapContainer.addEventListener('mousemove', (e) => {
+        if (collaborationManager && collaborationManager.isConnected) {
+          const rect = mapContainer.getBoundingClientRect();
+          const x = (e.clientX - rect.left) / currentZoom;
+          const y = (e.clientY - rect.top) / currentZoom;
+          
+          sendCollaborationMessage({
+            type: 'cursor-move',
+            sessionId: currentSession.id,
+            userId: currentUser.id,
+            x: x,
+            y: y
+          });
+        }
+      });
+    }
+    
+    function showCollaborationModal() {
+      document.getElementById('collaboration-modal').classList.remove('hidden');
+      if (currentSession) {
+        document.getElementById('session-id').value = currentSession.id;
+        document.getElementById('session-name').value = currentSession.name;
+      }
+      if (collaborationManager) {
+        collaborationManager.updateUI();
+      }
+    }
+    
+    function hideCollaborationModal() {
+      document.getElementById('collaboration-modal').classList.add('hidden');
+    }
+    
+    function createCollaborationSession() {
+      if (collaborationManager) {
+        collaborationManager.createSession();
+      }
+    }
+    
+    function joinCollaborationSession() {
+      const sessionId = prompt('请输入协作会话ID:');
+      if (sessionId && collaborationManager) {
+        collaborationManager.joinSession(sessionId);
+        showNotification('正在加入协作会话...', 'info');
+      }
+    }
+    
+    function sendChatMessage() {
+      const input = document.getElementById('chat-input');
+      const content = input.value.trim();
+      
+      if (!content || !collaborationManager || !collaborationManager.isConnected) {
+        return;
+      }
+      
+      const message = {
+        type: 'chat-message',
+        sessionId: currentSession.id,
+        userId: currentUser.id,
+        user: currentUser,
+        content: content,
+        timestamp: Date.now()
+      };
+      
+      sendCollaborationMessage(message);
+      addChatMessage(currentUser, content, Date.now());
+      
+      input.value = '';
+    }
+    
+    function handleChatKeyPress(e) {
+      if (e.key === 'Enter') {
+        sendChatMessage();
+      }
+    }
+    
+    function addChatMessage(user, content, timestamp) {
+      const messagesContainer = document.getElementById('chat-messages');
+      const messageElement = document.createElement('div');
+      messageElement.className = 'flex items-start space-x-2';
+      
+      const time = new Date(timestamp).toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      
+      messageElement.innerHTML = `
+        <div class="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-white" style="background-color: ${user.color}">
+          ${user.name.charAt(0)}
+        </div>
+        <div class="flex-1">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-medium" style="color: ${user.color}">${user.name}</span>
+            <span class="text-xs text-gray-500">${time}</span>
+          </div>
+          <p class="text-sm mt-1">${content}</p>
+        </div>
+      `;
+      
+      messagesContainer.appendChild(messageElement);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    function copySessionId() {
+      const sessionIdInput = document.getElementById('session-id');
+      sessionIdInput.select();
+      document.execCommand('copy');
+      showNotification('会话ID已复制到剪贴板', 'success');
+    }
+    
+    function updateCollaborationSettings() {
+      if (!collaborationManager) return;
+      
+      const settings = {
+        showCursors: document.getElementById('show-cursors').checked,
+        autoSync: document.getElementById('auto-sync').checked,
+        enableChat: document.getElementById('enable-chat').checked
+      };
+      
+      collaborationManager.updateSettings(settings);
+    }
+    
+    function getRandomColor() {
+      const colors = [
+        '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', 
+        '#feca57', '#ff9ff3', '#54a0ff', '#5f27cd'
+      ];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+    
+    function updateElementDOM(element) {
+      const domElement = document.querySelector(`[data-element-id="${element.id}"]`);
+      if (domElement) {
+        domElement.style.left = `${element.x}px`;
+        domElement.style.top = `${element.y}px`;
+        domElement.style.width = `${element.width}px`;
+        domElement.style.height = `${element.height}px`;
+        domElement.style.transform = `rotate(${element.rotation}deg)`;
+        domElement.style.backgroundColor = element.color;
+      }
+    }
+    
+    // 根据参考图生成地图
+    function generateMapFromReference() {
+      const preview = document.getElementById('reference-image-preview');
+      if (!preview.src) {
+        showNotification('请先上传参考图！', 'error');
+        return;
+      }
+      
+      showLoading('正在分析参考图并生成地图...');
+      
+      // 模拟AI分析图片并生成地图的过程
+      setTimeout(() => {
+        clearMap();
+        
+        // 根据参考图的风格特征生成相应的地图元素
+        // 这里我们模拟不同风格的地图生成
+        const randomStyle = Math.floor(Math.random() * 4);
+        
+        switch(randomStyle) {
+          case 0: // 奇幻风格
+            addMapElement('mountain', 200, 150, 120, 100);
+            addMapElement('castle', 350, 200, 100, 100);
+            addMapElement('forest', 450, 300, 100, 100);
+            addMapElement('river', 300, 350, 150, 80);
+            addMapElement('village', 400, 400, 60, 60);
+            break;
+          case 1: // 魔法风格
+            addMapElement('magic-tower', 250, 200, 100, 120);
+            addMapElement('magic-forest', 350, 350, 120, 120);
+            addMapElement('magic-circle', 300, 300, 80, 80);
+            break;
+          case 2: // 仙侠风格
+            addMapElement('xianxia-mountain', 250, 180, 150, 120);
+            addMapElement('xianxia-school', 350, 220, 130, 130);
+            addMapElement('flying-sword', 350, 280, 80, 40);
+            break;
+          case 3: // 古代王朝风格
+            addMapElement('ancient-palace', 300, 200, 150, 150);
+            addMapElement('ancient-wall', 500, 250, 200, 100);
+            addMapElement('ancient-pagoda', 550, 350, 100, 120);
+            break;
+        }
+        
+        updateElementCount();
+        hideLoading();
+        showNotification('根据参考图生成地图成功！', 'success');
+      }, 3000);
+    }
+    
+    // 添加地图元素
+    function addMapElement(type, x, y, width, height) {
+      const element = {
+        id: Date.now() + Math.random(),
+        type: type,
+        name: getElementTypeName(type),
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+        rotation: 0,
+        color: '#000000'
+      };
+      
+      mapElements.push(element);
+      createElementDOM(element);
+    }
+    
+    // 显示通知
+    function showNotification(message, type = 'info') {
+      const notification = document.getElementById('notification');
+      notification.textContent = message;
+      notification.classList.remove('hidden');
+      
+      // 设置样式
+      notification.className = 'fixed top-24 right-6 px-4 py-2 text-sm transition-opacity duration-300 z-50';
+      
+      switch (type) {
+        case 'success':
+          notification.classList.add('bg-black', 'text-white');
+          break;
+        case 'error':
+          notification.classList.add('bg-red-500', 'text-white');
+          break;
+        default:
+          notification.classList.add('bg-gray-800', 'text-white');
+      }
+      
+      // 显示
+      setTimeout(() => {
+        notification.style.opacity = '1';
+      }, 10);
+      
+      // 隐藏
+      setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => {
+          notification.classList.add('hidden');
+        }, 300);
+      }, 3000);
+    }
+    
+    // 显示加载
+    function showLoading(message = '加载中...') {
+      const loading = document.getElementById('loading');
+      loading.querySelector('p').textContent = message;
+      loading.classList.remove('hidden');
+    }
+    
+    // 隐藏加载
+    function hideLoading() {
+      document.getElementById('loading').classList.add('hidden');
+    }
+    
+    // 初始化自定义鼠标
+    function initCustomCursor() {
+      const cursor = document.getElementById('custom-cursor');
+      let mouseX = 0;
+      let mouseY = 0;
+      let cursorX = 0;
+      let cursorY = 0;
+      
+      // 显示光标
+      document.addEventListener('mousemove', (e) => {
+        cursor.style.opacity = '1';
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      });
+      
+      // 平滑跟随
+      function animateCursor() {
+        const speed = 0.2;
+        cursorX += (mouseX - cursorX) * speed;
+        cursorY += (mouseY - cursorY) * speed;
+        
+        cursor.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+        requestAnimationFrame(animateCursor);
+      }
+      
+      animateCursor();
+      
+      // 悬停效果
+      const hoverElements = document.querySelectorAll('button, a, .element-item, .bg-color-option');
+      hoverElements.forEach(element => {
+        element.addEventListener('mouseenter', () => {
+          cursor.style.width = '32px';
+          cursor.style.height = '32px';
+        });
+        
+        element.addEventListener('mouseleave', () => {
+          cursor.style.width = '24px';
+          cursor.style.height = '24px';
+        });
+      });
+    }
+    
+    // 初始化滚动效果
+    function initScrollEffects() {
+      const header = document.querySelector('header');
+      let lastScrollY = window.scrollY;
+      
+      window.addEventListener('scroll', () => {
+        const currentScrollY = window.scrollY;
+        
+        if (currentScrollY > 100) {
+          header.classList.add('py-2');
+          header.classList.remove('py-4');
+        } else {
+          header.classList.add('py-4');
+          header.classList.remove('py-2');
+        }
+        
+        lastScrollY = currentScrollY;
+      });
+    }
+  </script>
+</body>
+</html>
